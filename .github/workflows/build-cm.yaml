@@ -1,0 +1,45 @@
+name: Build and Push cert-manager Image
+
+on:
+  push:
+    branches: [ "release-1.15.06" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v3
+
+      # Authenticate to Google Cloud via Workload Identity Federation
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/664050025753/locations/global/workloadIdentityPools/github/providers/stape-io
+          service_account: github-actions@stape-development.iam.gserviceaccount.com
+          token_format: access_token
+
+      # Use the resulting token to log into Artifact Registry
+      - name: Docker Login to Artifact Registry
+        run: |
+          echo "${{ steps.auth.outputs.access_token }}" | docker login -u oauth2accesstoken --password-stdin https://europe-west1-docker.pkg.dev
+
+      # Build the cert-manager Docker image (replace with your actual Make command if needed)
+      - name: Build cert-manager Docker image
+        run: |
+          # If you have a Make target for building the image, e.g. `make container`,
+          # you can run that instead of `docker build`. For example:
+          #
+          #   make container
+          #
+          # Otherwise, directly call docker build:
+          docker build \
+            -t europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06 \
+            .
+
+      # Push the Docker image to Artifact Registry
+      - name: Push cert-manager Docker image
+        run: |
+          docker push europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06
