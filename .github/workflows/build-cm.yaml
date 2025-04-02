@@ -67,6 +67,8 @@ jobs:
 
       # 5) Build all cert-manager container images
       - name: Build cert-manager container images
+        env:
+          VERSION: "latest"
         run: make all-containers
 
       # 6) Load, tag, and push the “controller” image for amd64 to Artifact Registry.
