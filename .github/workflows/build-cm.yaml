@@ -61,8 +61,8 @@ jobs:
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/664050025753/locations/global/workloadIdentityPools/github/providers/stape-io
-          service_account: github-actions@stape-development.iam.gserviceaccount.com
+          workload_identity_provider: projects/492147627914/locations/global/workloadIdentityPools/github/providers/stape-io
+          service_account: github-actions@gtm-server-69.iam.gserviceaccount.com
           token_format: access_token
 
       - name: Login to Google Artifact Registry
@@ -91,7 +91,7 @@ jobs:
           # By default, the loaded image is tagged: cert-manager-controller-amd64:<VERSION>
           # We re-tag it for Artifact Registry:
           docker tag cert-manager-controller-amd64:${VERSION} \
-            europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06
+            europe-west1-docker.pkg.dev/gtm-server-69/services/cert-manager:1.15.06
 
           # Push to Artifact Registry
-          docker push europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06
+          docker push europe-west1-docker.pkg.dev/gtm-server-69/services/cert-manager:1.15.06
