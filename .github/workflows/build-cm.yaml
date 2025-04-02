@@ -13,11 +13,50 @@ jobs:
       contents: read
 
     steps:
-
       # 1) Check out the repository
-      - uses: actions/checkout@v3
+      - name: Check out code
+        uses: actions/checkout@v3
 
-      # 2) Authenticate to Google Cloud using Workload Identity Federation
+      # 2) Remove existing Docker / containerd packages from Ubuntu repos
+      #    that might conflict with Docker’s official containerd.io.
+      - name: Remove conflicting packages
+        run: |
+          sudo apt-get update
+          sudo apt-get remove -y docker docker.io containerd runc
+          sudo apt-get purge -y docker docker.io containerd runc
+          sudo apt-get autoremove -y
+
+      # 3) Add Docker’s official apt repo and install Docker CE, containerd.io, and make
+      - name: Install Docker CE from Docker repo + make
+        run: |
+          # Basic dependencies
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg lsb-release
+
+          # Add Docker’s official GPG key
+          sudo install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+            sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+          # Depending on your Ubuntu version, replace $(lsb_release -cs)
+          # if Docker doesn't officially support "24.04" or "noble" yet.
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          # Update again, then install Docker CE, containerd.io, and make
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io make
+
+          # Enable & start Docker
+          sudo systemctl enable docker
+          sudo systemctl start docker
+
+          # Verify Docker installed
+          docker --version
+
+      # 4) Authenticate to Google Cloud using Workload Identity Federation
       - id: auth
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -26,36 +65,24 @@ jobs:
           service_account: github-actions@stape-development.iam.gserviceaccount.com
           token_format: access_token
 
-      # 3) Install Docker and Make
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker.io make
-
-      # 4) Build all of the cert-manager container images (for all architectures)
+      # 5) Build all cert-manager container images
       - name: Build cert-manager container images
         run: make all-containers
 
-      # 5 & 6) Load, tag, and push one of the images (controller + amd64) to Artifact Registry
-      #
-      # If you want to push more than just the controller or more architectures,
-      # duplicate or loop over each binary + architecture as needed.
-      - name: Load, tag, and push controller image (amd64)
+      # 6) Load, tag, and push the “controller” image for amd64 to Artifact Registry.
+      #    (Adjust or repeat if you want more images/architectures.)
+      - name: Load, tag, and push controller (amd64)
         env:
-          # Example override of VERSION if desired; 
-          # otherwise it comes from git describe in the Makefile
+          # Override VERSION if desired; else it is set by git describe in the Makefile
           VERSION: "latest"
         run: |
-          # Load the tarball that was produced in _bin/containers
+          # The Makefile produced _bin/containers/cert-manager-controller-linux-amd64.tar.gz
           docker load -i _bin/containers/cert-manager-controller-linux-amd64.tar.gz
 
-          # The Makefile tags the loaded image as:
-          #     cert-manager-controller-amd64:<VERSION>
-          # but you can confirm the exact tag via `docker images`.
-          #
-          # Retag it as the "latest" version for your Artifact Registry repo.
+          # By default, the loaded image is tagged: cert-manager-controller-amd64:<VERSION>
+          # We re-tag it for Artifact Registry:
           docker tag cert-manager-controller-amd64:${VERSION} \
-            europe-west1-docker.pkg.dev/stape-development/services/cert-manager:latest
+            europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06
 
-          # Push it to Artifact Registry
-          docker push europe-west1-docker.pkg.dev/stape-development/services/cert-manager:latest
+          # Push to Artifact Registry
+          docker push europe-west1-docker.pkg.dev/stape-development/services/cert-manager:1.15.06
